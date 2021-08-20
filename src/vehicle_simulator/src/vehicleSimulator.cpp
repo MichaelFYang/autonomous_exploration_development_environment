@@ -9,6 +9,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 
 #include <std_msgs/Bool.h>
+#include <std_msgs/Float32.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/TwistStamped.h>
@@ -42,6 +43,7 @@ double vehicleHeight = 0.75;
 double terrainVoxelSize = 0.05;
 double groundHeightThre = 0.1;
 bool adjustZ = false;
+bool terrainValid = true;
 double terrainRadiusZ = 0.5;
 int minTerrainPointNumZ = 10;
 double smoothRateZ = 0.2;
@@ -68,12 +70,11 @@ ros::Time odomTime;
 float vehicleX = 0;
 float vehicleY = 0;
 float vehicleZ = 0;
-float vehicleRoll = 0;
-float vehiclePitch = 0;
 float vehicleYaw = 0;
 
 float vehicleYawRate = 0;
 float vehicleSpeed = 0;
+float vehicleLiftSpeed = 0;
 
 float terrainZ = 0;
 float terrainRoll = 0;
@@ -83,8 +84,6 @@ const int stackNum = 400;
 float vehicleXStack[stackNum];
 float vehicleYStack[stackNum];
 float vehicleZStack[stackNum];
-float vehicleRollStack[stackNum];
-float vehiclePitchStack[stackNum];
 float vehicleYawStack[stackNum];
 float terrainRollStack[stackNum];
 float terrainPitchStack[stackNum];
@@ -122,8 +121,6 @@ void scanHandler(const sensor_msgs::PointCloud2::ConstPtr& scanIn)
   float vehicleRecX = vehicleX;
   float vehicleRecY = vehicleY;
   float vehicleRecZ = vehicleZ;
-  float vehicleRecRoll = vehicleRoll;
-  float vehicleRecPitch = vehiclePitch;
   float vehicleRecYaw = vehicleYaw;
   float terrainRecRoll = terrainRoll;
   float terrainRecPitch = terrainPitch;
@@ -134,8 +131,6 @@ void scanHandler(const sensor_msgs::PointCloud2::ConstPtr& scanIn)
     vehicleRecX = vehicleXStack[odomRecIDPointer];
     vehicleRecY = vehicleYStack[odomRecIDPointer];
     vehicleRecZ = vehicleZStack[odomRecIDPointer];
-    vehicleRecRoll = vehicleRollStack[odomRecIDPointer];
-    vehicleRecPitch = vehiclePitchStack[odomRecIDPointer];
     vehicleRecYaw = vehicleYawStack[odomRecIDPointer];
     terrainRecRoll = terrainRollStack[odomRecIDPointer];
     terrainRecPitch = terrainPitchStack[odomRecIDPointer];
@@ -193,7 +188,7 @@ void terrainCloudHandler(const sensor_msgs::PointCloud2ConstPtr& terrainCloud2)
   int terrainCloudSize = terrainCloud->points.size();
   double elevMean = 0;
   int elevCount = 0;
-  bool terrainValid = true;
+  terrainValid = true;
   for (int i = 0; i < terrainCloudSize; i++)
   {
     point = terrainCloud->points[i];
@@ -297,6 +292,7 @@ void terrainCloudHandler(const sensor_msgs::PointCloud2ConstPtr& terrainCloud2)
 void speedHandler(const geometry_msgs::TwistStamped::ConstPtr& speedIn)
 {
   vehicleSpeed = speedIn->twist.linear.x;
+  vehicleLiftSpeed = speedIn->twist.linear.z;
   vehicleYawRate = speedIn->twist.angular.z;
 }
 
@@ -335,6 +331,8 @@ int main(int argc, char** argv)
 
   ros::Publisher pubVehicleOdom = nh.advertise<nav_msgs::Odometry>("/state_estimation", 5);
 
+  ros::Publisher pubTerrainZ = nh.advertise<std_msgs::Float32>("/terrain_z", 5);
+
   nav_msgs::Odometry odomData;
   odomData.header.frame_id = "/map";
   odomData.child_frame_id = "/sensor";
@@ -359,29 +357,38 @@ int main(int argc, char** argv)
 
   printf("\nSimulation started.\n\n");
 
+  std_msgs::Float32 terrainZMsg;
+
   ros::Rate rate(200);
   bool status = ros::ok();
   while (status)
   {
     ros::spinOnce();
-
-    float vehicleRecRoll = vehicleRoll;
-    float vehicleRecPitch = vehiclePitch;
     float vehicleRecZ = vehicleZ;
 
-    vehicleRoll = terrainRoll * cos(vehicleYaw) + terrainPitch * sin(vehicleYaw);
-    vehiclePitch = -terrainRoll * sin(vehicleYaw) + terrainPitch * cos(vehicleYaw);
     vehicleYaw += 0.005 * vehicleYawRate;
     if (vehicleYaw > PI)
       vehicleYaw -= 2 * PI;
     else if (vehicleYaw < -PI)
       vehicleYaw += 2 * PI;
 
+    // publish terrain z
+    if (terrainValid) {
+      terrainZMsg.data = terrainZ;
+      pubTerrainZ.publish(terrainZMsg);
+    } else {
+      terrainZMsg.data = -1.0;
+      pubTerrainZ.publish(terrainZMsg);
+    }
+
     vehicleX += 0.005 * cos(vehicleYaw) * vehicleSpeed +
                 0.005 * vehicleYawRate * (-sin(vehicleYaw) * sensorOffsetX - cos(vehicleYaw) * sensorOffsetY);
     vehicleY += 0.005 * sin(vehicleYaw) * vehicleSpeed +
                 0.005 * vehicleYawRate * (cos(vehicleYaw) * sensorOffsetX - sin(vehicleYaw) * sensorOffsetY);
-    vehicleZ = terrainZ + vehicleHeight;
+    vehicleZ += 0.005 * vehicleLiftSpeed;
+    if (terrainValid && vehicleZ < terrainZ + vehicleHeight) {
+      vehicleZ = terrainZ + vehicleHeight;
+    }
 
     odomTime = ros::Time::now();
 
@@ -390,22 +397,20 @@ int main(int argc, char** argv)
     vehicleXStack[odomSendIDPointer] = vehicleX;
     vehicleYStack[odomSendIDPointer] = vehicleY;
     vehicleZStack[odomSendIDPointer] = vehicleZ;
-    vehicleRollStack[odomSendIDPointer] = vehicleRoll;
-    vehiclePitchStack[odomSendIDPointer] = vehiclePitch;
     vehicleYawStack[odomSendIDPointer] = vehicleYaw;
     terrainRollStack[odomSendIDPointer] = terrainRoll;
     terrainPitchStack[odomSendIDPointer] = terrainPitch;
 
     // publish 200Hz odometry messages
-    geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw(vehicleRoll, vehiclePitch, vehicleYaw);
+    geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw(0.0, 0.0, vehicleYaw);
 
     odomData.header.stamp = odomTime;
     odomData.pose.pose.orientation = geoQuat;
     odomData.pose.pose.position.x = vehicleX;
     odomData.pose.pose.position.y = vehicleY;
     odomData.pose.pose.position.z = vehicleZ;
-    odomData.twist.twist.angular.x = 200.0 * (vehicleRoll - vehicleRecRoll);
-    odomData.twist.twist.angular.y = 200.0 * (vehiclePitch - vehicleRecPitch);
+    odomData.twist.twist.angular.x = 0.0;
+    odomData.twist.twist.angular.y = 0.0;
     odomData.twist.twist.angular.z = vehicleYawRate;
     odomData.twist.twist.linear.x = vehicleSpeed;
     odomData.twist.twist.linear.z = 200.0 * (vehicleZ - vehicleRecZ);

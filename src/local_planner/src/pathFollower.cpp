@@ -63,6 +63,7 @@ double joyToSpeedDelay = 2.0;
 float joySpeed = 0;
 float joySpeedRaw = 0;
 float joyYaw = 0;
+float joyLiftSpeed = 0.0;
 int safetyStop = 0;
 
 float vehicleX = 0;
@@ -148,7 +149,7 @@ void joystickHandler(const sensor_msgs::Joy::ConstPtr& joy)
   if (joy->axes[4] == 0) joySpeed = 0;
   joyYaw = joy->axes[3];
   if (joySpeed == 0 && noRotAtStop) joyYaw = 0;
-
+  joyLiftSpeed = joy->axes[1];
   if (joy->axes[4] < 0 && !twoWayDrive) {
     joySpeed = 0;
     joyYaw = 0;
@@ -334,6 +335,7 @@ int main(int argc, char** argv)
         cmd_vel.header.stamp = ros::Time().fromSec(odomTime);
         if (fabs(vehicleSpeed) <= maxAccel / 100.0) cmd_vel.twist.linear.x = 0;
         else cmd_vel.twist.linear.x = vehicleSpeed;
+        cmd_vel.twist.linear.z = joyLiftSpeed;
         cmd_vel.twist.angular.z = vehicleYawRate;
         pubSpeed.publish(cmd_vel);
 
