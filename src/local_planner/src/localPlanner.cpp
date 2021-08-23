@@ -38,6 +38,7 @@ double vehicleLength = 0.6;
 double vehicleWidth = 0.6;
 double sensorOffsetX = 0;
 double sensorOffsetY = 0;
+double cellHeight = 0.5;
 bool twoWayDrive = true;
 double laserVoxelSize = 0.05;
 double terrainVoxelSize = 0.2;
@@ -190,7 +191,8 @@ void terrainCloudHandler(const sensor_msgs::PointCloud2ConstPtr& terrainCloud2)
       float pointZ = point.z;
 
       float dis = sqrt((pointX - vehicleX) * (pointX - vehicleX) + (pointY - vehicleY) * (pointY - vehicleY));
-      if (dis < adjacentRange && (point.intensity > obstacleHeightThre || useCost)) {
+      float v_dist = fabs(pointZ - vehicleZ);
+      if (v_dist < cellHeight && dis < adjacentRange && (point.intensity > obstacleHeightThre || useCost)) {
         point.x = pointX;
         point.y = pointY;
         point.z = pointZ;
@@ -502,6 +504,7 @@ int main(int argc, char** argv)
   nhPrivate.getParam("sensorOffsetX", sensorOffsetX);
   nhPrivate.getParam("sensorOffsetY", sensorOffsetY);
   nhPrivate.getParam("twoWayDrive", twoWayDrive);
+  nhPrivate.getParam("cellHeight", cellHeight);
   nhPrivate.getParam("laserVoxelSize", laserVoxelSize);
   nhPrivate.getParam("terrainVoxelSize", terrainVoxelSize);
   nhPrivate.getParam("useTerrainAnalysis", useTerrainAnalysis);
