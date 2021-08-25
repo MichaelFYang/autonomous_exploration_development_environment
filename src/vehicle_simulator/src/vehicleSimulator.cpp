@@ -386,9 +386,6 @@ int main(int argc, char** argv)
     vehicleY += 0.005 * sin(vehicleYaw) * vehicleSpeed +
                 0.005 * vehicleYawRate * (cos(vehicleYaw) * sensorOffsetX - sin(vehicleYaw) * sensorOffsetY);
     vehicleZ += 0.005 * vehicleLiftSpeed;
-    if (terrainValid && vehicleZ < terrainZ + vehicleHeight) {
-      vehicleZ = terrainZ + vehicleHeight;
-    }
 
     odomTime = ros::Time::now();
 

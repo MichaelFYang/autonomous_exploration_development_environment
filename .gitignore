@@ -8,6 +8,10 @@ install
 
 .catkin_workspace
 
+.catkin_tools
+
+logs
+
 *~
 
 .DS_Store

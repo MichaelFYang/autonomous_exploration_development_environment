@@ -191,8 +191,7 @@ void terrainCloudHandler(const sensor_msgs::PointCloud2ConstPtr& terrainCloud2)
       float pointZ = point.z;
 
       float dis = sqrt((pointX - vehicleX) * (pointX - vehicleX) + (pointY - vehicleY) * (pointY - vehicleY));
-      float v_dist = fabs(pointZ - vehicleZ);
-      if (v_dist < cellHeight && dis < adjacentRange && (point.intensity > obstacleHeightThre || useCost)) {
+      if (dis < adjacentRange && (point.intensity > obstacleHeightThre || useCost)) {
         point.x = pointX;
         point.y = pointY;
         point.z = pointZ;
@@ -652,7 +651,7 @@ int main(int argc, char** argv)
         point.intensity = plannerCloud->points[i].intensity;
 
         float dis = sqrt(point.x * point.x + point.y * point.y);
-        if (dis < adjacentRange && ((point.z > minRelZ && point.z < maxRelZ) || useTerrainAnalysis)) {
+        if (dis < adjacentRange && ((point.z > -cellHeight && point.z < cellHeight) || useTerrainAnalysis)) {
           plannerCloudCrop->push_back(point);
         }
       }

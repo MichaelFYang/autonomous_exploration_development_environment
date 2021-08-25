@@ -3,8 +3,8 @@
   <arg name="sensorOffsetX" default="0"/>
   <arg name="sensorOffsetY" default="0"/>
   <arg name="cameraOffsetZ" default="0"/>
-  <arg name="cellHeight" default="0.75"/>
-  <arg name="controlPZ" default="0.3"/>
+  <arg name="cellHeight" default="0.2"/>
+  <arg name="controlPZ" default="0.1"/>
   <arg name="twoWayDrive" default="true"/>
   <arg name="maxSpeed" default="2.0"/>
   <arg name="autonomyMode" default="false"/>

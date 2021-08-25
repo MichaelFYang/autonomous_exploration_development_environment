@@ -120,10 +120,11 @@ void odomHandler(const nav_msgs::Odometry::ConstPtr& odomIn)
     slowInitTime = odomIn->header.stamp.toSec();
   }
 
-  cmdVelZ = controlPZ * (goalZ - vehicleZ);
+  cmdVelZ = goalZ - vehicleZ;
   if (fabs(cmdVelZ) > 1.0) {
     cmdVelZ /= fabs(cmdVelZ);
   }
+  cmdVelZ *= controlPZ;
 }
 
 void pathHandler(const nav_msgs::Path::ConstPtr& pathIn)
@@ -162,7 +163,9 @@ void joystickHandler(const sensor_msgs::Joy::ConstPtr& joy)
   if (joy->axes[4] == 0) joySpeed = 0;
   joyYaw = joy->axes[3];
   if (joySpeed == 0 && noRotAtStop) joyYaw = 0;
+
   joyLiftSpeed = joy->axes[1];
+  
   if (joy->axes[4] < 0 && !twoWayDrive) {
     joySpeed = 0;
     joyYaw = 0;
@@ -316,11 +319,14 @@ int main(int argc, char** argv)
 
       if (joySpeed2 == 0 && !autonomyMode) {
         vehicleYawRate = maxYawRate * joyYaw * PI / 180.0;
-        cmdVelZ = joyLiftSpeed;
       } else if (pathSize <= 1 || (dis < stopDisThre && noRotAtGoal)) {
         vehicleYawRate = 0;
       }
 
+      if (!autonomyMode) {
+        cmdVelZ = joyLiftSpeed;
+      }
+      
       if (pathSize <= 1) {
         joySpeed2 = 0;
       } else if (endDis / slowDwnDisThre < joySpeed) {
@@ -352,11 +358,14 @@ int main(int argc, char** argv)
         cmd_vel.header.stamp = ros::Time().fromSec(odomTime);
         if (fabs(vehicleSpeed) <= maxAccel / 100.0) cmd_vel.twist.linear.x = 0;
         else cmd_vel.twist.linear.x = vehicleSpeed;
-        if (fabs(cmdVelZ) < 1e-4) cmdVelZ = 0.0;
+        if (fabs(cmdVelZ) < 1e-5) cmdVelZ = 0.0;
+        
+        
         cmd_vel.twist.linear.z = cmdVelZ;
+
+
         cmd_vel.twist.angular.z = vehicleYawRate;
         pubSpeed.publish(cmd_vel);
-
         pubSkipCount = pubSkipNum;
       }
     }
